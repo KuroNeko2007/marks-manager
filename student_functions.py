@@ -1,14 +1,17 @@
+from datetime import datetime
+from mysql.connector import IntegrityError
 from os import system
 from rich import print
+import pwinput
 from rich.prompt import Confirm
 from rich.table import Table
-from mysql.connector import IntegrityError
-from datetime import datetime
+
 import config
-import pwinput
-import numpy
 
 def student_auth():
+    """
+    Entry point for students
+    """
     while True:
         system('cls')
         print("-" * 32)
@@ -41,36 +44,56 @@ def student_auth():
 
         config.wait_for_enter()
 
+
 def _login():
+    """
+    Verifies student login credential and redirects to the students homepage if successful
+
+    Raises
+    ------
+    config.LoginError
+        If the credentials are not valid
+    """
+
     print("\n")
+
+    #Inputs student details
     rollno = input("Enter your roll number: ")
     pwd = pwinput.pwinput("Enter your password (contact admin if you forgot): ")
 
+    #Fetches data from database
     config.cur.execute("select pwd, name from students where rollno = '{}';".format(rollno))
     users = config.cur.fetchall()
 
+    #Checks if credentials are valid
     if len(users) == 0 or users[0][0] != pwd: # type: ignore
         print("[red]Incorrect roll number or password")
         raise config.LoginError
 
+    #Redirects to student homepage
     print("[green]Logged in successfully!")
-
     _student_home(rollno, users[0][1]) # type: ignore
 
 def _signup():
+    """
+    Creates a new student profile
+    """
+
     print("\n")
 
+    #Inputs student details
     rollno = int(input("Enter your roll number: "))
     name = input("Enter your name: ")
     pwd = pwinput.pwinput("Enter a password: ")
-
     re_pwd = pwinput.pwinput("Confirm your password: ")
+
 
     if pwd != re_pwd:
         print("[red]Could not create profile")
         print("[red]Password and confirmed password do not match")
         return
 
+    #Attempts to create profile
     try:
         config.cur.execute("insert into students values({}, '{}', '{}')".format(rollno, name, pwd))
         config.con.commit()
@@ -82,8 +105,17 @@ def _signup():
     else:
         print("[green]Profile created successfully!")
 
-
 def _student_home(rollno, name):
+    """
+    Homepage for students
+
+    Parameters
+    ----------
+    rollno : int
+        Roll number of student, used in further queries
+    name: str
+        Name of student, used only for welcome message
+    """
     while True:
         system('cls')
         print("-" * 32)
@@ -123,10 +155,21 @@ def _student_home(rollno, name):
 
 
 def _view_student_results(rollno):
+    """
+    Lets students access their results
+
+    Parameters
+    ----------
+    rollno : int
+        Roll number of students, used to fetch the results
+    """
+
     print("\n")
 
+    #Asks user for additional details
     series = input("Series (leave blank to display all): ")
 
+    #Fetches the list of exams given by student
     if series == "":
         query = "select results.eid, exams.date, exams.series_id, results.marks, results.ranking, exams.sub_max_marks from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid order by exams.date desc".format(rollno)
     else:
@@ -142,8 +185,9 @@ def _view_student_results(rollno):
         print("[red]Error: Could not fetch results")
         return
 
-    # Display the result
+    #Displays the result
 
+    #--Creates table to display the result
     table = Table()
 
     table.add_column("Exam ID", style="cyan", no_wrap=True)
@@ -154,7 +198,9 @@ def _view_student_results(rollno):
     table.add_column("Rank", style="light_sea_green", justify="right")
     table.add_column("Subjects")
 
-    for exam in exam_list:        
+    #--Adds a row for result of each exam
+    for exam in exam_list:
+        #-- --Fetches subject list of specific exam
         try:
             config.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid order by exam_subjects.sid;".format(exam[0])) #type: ignore
             sub_details = config.cur.fetchall()
@@ -162,13 +208,14 @@ def _view_student_results(rollno):
             print("[red]Error: Could not display result")
             return
 
-
+        #-- --Creates sub-table for subject-wise results
         sub_table = Table(expand=True, padding=(0, 4), box=None)
         sub_table.add_column("Subject", style="green4")
         sub_table.add_column("Marks", style="turquoise2", justify="right")
         sub_table.add_column("Percentage", style="blue_violet", justify="right")
         sub_table.add_column("Rank", style="chartreuse3", justify="right")
 
+        #-- -- --Fetches subject-wise details and adds it to the sub-table
         for sub in sub_details:
             config.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[0])) #type: ignore
             sub_results = config.cur.fetchall()[0]
@@ -179,6 +226,7 @@ def _view_student_results(rollno):
                 str(sub_results[1] if not sub_results[1] is None else "-")      # type: ignore
             ) 
 
+        ##-- --Adds exams to the table
         table.add_row(
             exam[0],                                                            # type: ignore
             datetime.strftime(exam[1], '%Y-%m-%d'),                             # type: ignore
@@ -189,15 +237,26 @@ def _view_student_results(rollno):
             sub_table
         )
 
+    ##--Display the created table
     print(table)
 
 def _view_analysis(rollno):
+    """
+    Lets students analyse their results
+
+    Parameters
+    ----------
+    rollno : int
+        Roll number of students, used to fetch the results
+    """
+
     print("\n")
 
+    #Asks user for additional details
     series = input("Series (leave blank to use all): ")
-
     recent_count = int(input("Number of exams to be considered in recent: "))
     
+    #Fetches subject list of student
     if series == "":
         query = "select distinct subjects.name, subjects.sid from subjects, results where results.rollno={} and results.sid=subjects.sid order by sid".format(rollno)
     else:
@@ -206,6 +265,7 @@ def _view_analysis(rollno):
     config.cur.execute(query)
     subject_list = config.cur.fetchall()
 
+    #Creates table to display the results
     table = Table()
 
     table.add_column("Subject", style="green4")
@@ -214,8 +274,10 @@ def _view_analysis(rollno):
     table.add_column("Recent Average Percentage", style="light_sea_green", justify="right")
     table.add_column("Recent Percentage Standard Deviation", style="magenta", justify="right")
 
+    #Adds a row for each subject
     for sub in subject_list:
-        # The queries are very complicated, do not attempt to alter them unless you are prepared to spend hours on it
+        #--Uses queries to fetch average and standard deviation of percentages for each subject and total
+        #--These are complicated by the fact that when total percentages are being calculated, it needs to be divided by the number of subjects
         if series == "":
             query = "select avg(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from results, exams, (select eid, count(*) as c from exam_subjects group by eid) as num where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.eid=num.eid".format(sub[1], rollno) #type: ignore
         else:
@@ -223,6 +285,7 @@ def _view_analysis(rollno):
         config.cur.execute(query)
         overall_data = config.cur.fetchall()
 
+        #--Same as above, but only for recent exams
         if series == "":
             query = "select avg(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from (select results.marks, exams.sub_max_marks, row_number() over (order by date) row_num from results, exams where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid) as n, (select eid, count(*) as c from exam_subjects group by eid) as num where row_num <= {2};".format(sub[1], rollno, recent_count) #type: ignore
         else:
@@ -230,54 +293,80 @@ def _view_analysis(rollno):
         config.cur.execute(query)
         recent_data = config.cur.fetchall()
         
-
         table.add_row(sub[0], str(int(100*overall_data[0][0]) / 100), str(int(100*overall_data[0][1]) / 100), str(int(100*recent_data[0][0]) / 100), str(int(100*recent_data[0][1]) / 100)) #type: ignore
 
+    #Displays the result
     print(table)
 
 
 def _update_password(rollno):
+    """
+    Updates student's password
+
+    Parameters
+    ----------
+    rollno : int
+        Roll number of student, used to identify student for updation
+    """
+
     print("\n")
 
+    #Confirms student's identity
     pwd = pwinput.pwinput("Please enter current password: ")
-    
     config.cur.execute("select pwd from students where rollno = {}".format(rollno))
 
     if pwd != config.cur.fetchall()[0][0]: # type: ignore
         print("[red]Incorrect password")
         return
     
+    #Inputs new password
     new_pwd = pwinput.pwinput("Enter new password: ")
     re_new_pwd = pwinput.pwinput("Confirm new password: ")
-
 
     if new_pwd != re_new_pwd:
         print("[red]Did not update passsword")
         print("[red]Password and confirmed password do not match")
         return
     
+    #Updates the database
     config.cur.execute("update students set pwd='{}' where rollno={}".format(new_pwd, rollno))
     config.con.commit()
 
     print("[green]Password updated successfully")
 
 def _delete_account(rollno):
-    print("\n")
+    """
+    Deletes student's profile
 
+    Parameters
+    ----------
+    rollno : int
+        Roll number of student, used to identify student for deletion
+
+    Raises
+    ------
+    config.AccountDeleted
+        If account is successfully deleted.
+        Not an actual error, but used to exit out of the student homepage loop
+    """
+
+    print("\n")
+    
+    #Displays warning to student
     print("[red bold]This action is irreversible")
     confirmed = Confirm.ask("[blue bold]Are you sure you wish to delete your profile?")
-
     if not confirmed:
         return
     
+    #Confirms student's identiy
     pwd = pwinput.pwinput("Please enter password for verification: ")
-    
     config.cur.execute("select pwd from students where rollno = {}".format(rollno))
 
     if pwd != config.cur.fetchall()[0][0]: # type: ignore
         print("[red]Incorrect password")
         return
     
+    #Deletes account
     config.cur.execute("delete from students where rollno={}".format(rollno))
     config.con.commit()
 
@@ -286,4 +375,3 @@ def _delete_account(rollno):
     config.wait_for_enter()
 
     raise config.AccountDeleted
-
