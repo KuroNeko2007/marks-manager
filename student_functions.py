@@ -186,7 +186,7 @@ def _view_student_results(rollno):
             cfg.failure("No results found")
             raise
     except:
-        cfg.failure("Error: Could not fetch results")
+        cfg.failure("Could not fetch results")
         return
 
     #Displays the result
@@ -209,7 +209,7 @@ def _view_student_results(rollno):
             cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid order by exam_subjects.sid;".format(exam[0])) #type: ignore
             sub_details = cfg.cur.fetchall()
         except:
-            cfg.failure("Error: Could not display result")
+            cfg.failure("Could not display result")
             return
 
         #-- --Creates sub-table for subject-wise results
