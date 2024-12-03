@@ -13,7 +13,7 @@ def home_page():
     while True:
         system('cls')
         print("-" * 32)
-        print("[bold violet]Welcome to the Marks Analyser")
+        print("[bold violet]Welcome to the Marks Manager")
         print("-" * 32)
         
         print("\n")
