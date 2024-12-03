@@ -477,6 +477,9 @@ def _add_exam():
                 cfg.failure("Atleast one subject must be added")
             else:
                 break
+        elif sub_code == "000":
+            cfg.failure("The [blue1]Total[/blue1] gets added automatically")
+            continue
 
         sub_codes.add(sub_code)
 
