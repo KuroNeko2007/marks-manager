@@ -22,9 +22,12 @@ def admin_auth():
         print("\n")
         print("1. Return to Home Screen")
         print("2. Sign in")
+        print()
 
         try:
             choice = int(input("Enter your choice: "))
+
+            print("\n")
             if choice == 1:
                 break
             elif choice == 2:
@@ -51,7 +54,6 @@ def _login():
     cfg.LoginError
         If the credentials are not valid
     """
-    print("\n")
     uid = input("Enter your user id: ")
     pwd = pwinput.pwinput("Enter your password: ")
 
@@ -83,16 +85,20 @@ def _admin_home(uid):
 
         print("\n")
         print("1. Logout")
+        print()
         print("2. View students")
         print("3. View exams")
         print("4. View subjects")
         print("5. View exam series")
         print("6. View results")
+        print()
         print("7. Add exam")
         print("8. Add subject")
         print("9. Add exam series")
         print("10. Add results")
+        print()
         print("11. Reset student password")
+        print()
 
         # TODO Ability to edit entered data
 
@@ -269,6 +275,7 @@ def _view_results():
     print("1. Of exam")
     print("2. Of student")
     print("3. Of specific exam and student")
+    print()
 
     try:
         choice = int(input("Enter your choice: "))

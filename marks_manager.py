@@ -20,6 +20,8 @@ def home_page():
         print("1. Exit")
         print("2. Admin")
         print("3. Student")
+        print()
+
 
         try:
             choice = int(input("Enter your choice: "))

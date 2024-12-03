@@ -22,6 +22,8 @@ def student_auth():
         print("1. Return to Home Screen")
         print("2. Login")
         print("3. Sign up")
+        print()
+
 
         try:
             choice = int(input("Enter your choice: "))
@@ -128,6 +130,8 @@ def _student_home(rollno, name):
         print("3. Analyse results")
         print("4. Update password")
         print("5. Delete profile")
+        print()
+
 
         try:
             choice = int(input("Enter your choice: "))
@@ -375,3 +379,5 @@ def _delete_account(rollno):
     cfg.wait_for_enter()
 
     raise cfg.AccountDeleted
+
+
