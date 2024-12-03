@@ -29,7 +29,7 @@ def connect():
         host = "localhost",
         user = "root",
         passwd = "mysql@pwd_2024",
-        database = "marks-analyser"
+        database = "marks-manager"
     )
 
     if not con.is_connected():
