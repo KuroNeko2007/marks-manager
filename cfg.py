@@ -41,3 +41,9 @@ def connect():
 def wait_for_enter(message="Press enter to continue..."):
     print()
     input(message)
+
+def failure(message):
+    print("[red]" + message + "[/red]")
+
+def success(message):
+    print("[green]" + message + "[/green]")

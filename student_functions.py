@@ -6,7 +6,7 @@ import pwinput
 from rich.prompt import Confirm
 from rich.table import Table
 
-import config
+import cfg
 
 def student_auth():
     """
@@ -35,23 +35,23 @@ def student_auth():
             else:
                 raise ValueError
         except ValueError:
-            print("[red]Invalid Input")
-        except config.LoginError:
+            cfg.failure("Invalid Input")
+        except cfg.LoginError:
             pass
         except KeyboardInterrupt:
-            print("[red]Cancelled operation")
+            cfg.failure("\nCancelled operation")
             pass
 
-        config.wait_for_enter()
+        cfg.wait_for_enter()
 
 
 def _login():
     """
-    Verifies student login credential and redirects to the students homepage if successful
+    Verifies student login credential and redirects to the student's homepage if successful
 
     Raises
     ------
-    config.LoginError
+    cfg.LoginError
         If the credentials are not valid
     """
 
@@ -62,16 +62,16 @@ def _login():
     pwd = pwinput.pwinput("Enter your password (contact admin if you forgot): ")
 
     #Fetches data from database
-    config.cur.execute("select pwd, name from students where rollno = '{}';".format(rollno))
-    users = config.cur.fetchall()
+    cfg.cur.execute("select pwd, name from students where rollno = '{}';".format(rollno))
+    users = cfg.cur.fetchall()
 
     #Checks if credentials are valid
     if len(users) == 0 or users[0][0] != pwd: # type: ignore
-        print("[red]Incorrect roll number or password")
-        raise config.LoginError
+        cfg.failure("Incorrect roll number or password")
+        raise cfg.LoginError
 
     #Redirects to student homepage
-    print("[green]Logged in successfully!")
+    cfg.success("Logged in successfully!")
     _student_home(rollno, users[0][1]) # type: ignore
 
 def _signup():
@@ -89,21 +89,21 @@ def _signup():
 
 
     if pwd != re_pwd:
-        print("[red]Could not create profile")
-        print("[red]Password and confirmed password do not match")
+        cfg.failure("Could not create profile")
+        cfg.failure("Password and confirmed password do not match")
         return
 
     #Attempts to create profile
     try:
-        config.cur.execute("insert into students values({}, '{}', '{}')".format(rollno, name, pwd))
-        config.con.commit()
+        cfg.cur.execute("insert into students values({}, '{}', '{}')".format(rollno, name, pwd))
+        cfg.con.commit()
     except IntegrityError:
-        print("[red]Roll number taken")
-        print("[red]Could not create profile")
+        cfg.failure("Roll number taken")
+        cfg.failure("Could not create profile")
     except:
-        print("[red]Could not create profile")
+        cfg.failure("Could not create profile")
     else:
-        print("[green]Profile created successfully!")
+        cfg.success("Profile created successfully!")
 
 def _student_home(rollno, name):
     """
@@ -144,14 +144,14 @@ def _student_home(rollno, name):
             else:
                 raise ValueError
         except ValueError:
-            print("[red]Invalid Input")
-        except config.AccountDeleted:
+            cfg.failure("Invalid Input")
+        except cfg.AccountDeleted:
             break
         except KeyboardInterrupt:
-            print("[red]Cancelled operation")
+            cfg.failure("\nCancelled operation")
             pass
 
-        config.wait_for_enter()    
+        cfg.wait_for_enter()    
 
 
 def _view_student_results(rollno):
@@ -176,13 +176,13 @@ def _view_student_results(rollno):
         query = "select results.eid, exams.date, exams.series_id, results.marks, results.ranking, exams.sub_max_marks from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid and exams.series_id = '{}' order by exams.date desc".format(rollno, series)
 
     try:
-        config.cur.execute(query)
-        exam_list = config.cur.fetchall()
+        cfg.cur.execute(query)
+        exam_list = cfg.cur.fetchall()
         if len(exam_list) == 0:
-            print("[red]No results found")
+            cfg.failure("No results found")
             raise
     except:
-        print("[red]Error: Could not fetch results")
+        cfg.failure("Error: Could not fetch results")
         return
 
     #Displays the result
@@ -202,10 +202,10 @@ def _view_student_results(rollno):
     for exam in exam_list:
         #-- --Fetches subject list of specific exam
         try:
-            config.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid order by exam_subjects.sid;".format(exam[0])) #type: ignore
-            sub_details = config.cur.fetchall()
+            cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid order by exam_subjects.sid;".format(exam[0])) #type: ignore
+            sub_details = cfg.cur.fetchall()
         except:
-            print("[red]Error: Could not display result")
+            cfg.failure("Error: Could not display result")
             return
 
         #-- --Creates sub-table for subject-wise results
@@ -217,8 +217,8 @@ def _view_student_results(rollno):
 
         #-- -- --Fetches subject-wise details and adds it to the sub-table
         for sub in sub_details:
-            config.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[0])) #type: ignore
-            sub_results = config.cur.fetchall()[0]
+            cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[0])) #type: ignore
+            sub_results = cfg.cur.fetchall()[0]
             sub_table.add_row(
                 sub[1],                                                         # type: ignore
                 str(sub_results[0]),                                            # type: ignore
@@ -262,8 +262,8 @@ def _view_analysis(rollno):
     else:
         query = "select distinct subjects.name, subjects.sid from subjects, results, exams where results.rollno={} and results.sid=subjects.sid and results.eid = exams.eid and exams.series_id='{}' order by sid".format(rollno, series)
 
-    config.cur.execute(query)
-    subject_list = config.cur.fetchall()
+    cfg.cur.execute(query)
+    subject_list = cfg.cur.fetchall()
 
     #Creates table to display the results
     table = Table()
@@ -282,16 +282,16 @@ def _view_analysis(rollno):
             query = "select avg(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from results, exams, (select eid, count(*) as c from exam_subjects group by eid) as num where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.eid=num.eid".format(sub[1], rollno) #type: ignore
         else:
             query = "select avg(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from results, exams, (select eid, count(*) as c from exam_subjects group by eid) as num where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.series_id='{2}'".format(sub[1], rollno, series) #type: ignore
-        config.cur.execute(query)
-        overall_data = config.cur.fetchall()
+        cfg.cur.execute(query)
+        overall_data = cfg.cur.fetchall()
 
         #--Same as above, but only for recent exams
         if series == "":
             query = "select avg(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from (select results.marks, exams.sub_max_marks, row_number() over (order by date) row_num from results, exams where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid) as n, (select eid, count(*) as c from exam_subjects group by eid) as num where row_num <= {2};".format(sub[1], rollno, recent_count) #type: ignore
         else:
             query = "select avg(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from (select results.marks, exams.sub_max_marks, row_number() over (order by date) row_num from results, exams where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.series_id='{3}') as n, (select eid, count(*) as c from exam_subjects group by eid) as num where row_num <= {2};".format(sub[1], rollno, recent_count, series) #type: ignore
-        config.cur.execute(query)
-        recent_data = config.cur.fetchall()
+        cfg.cur.execute(query)
+        recent_data = cfg.cur.fetchall()
         
         table.add_row(sub[0], str(int(100*overall_data[0][0]) / 100), str(int(100*overall_data[0][1]) / 100), str(int(100*recent_data[0][0]) / 100), str(int(100*recent_data[0][1]) / 100)) #type: ignore
 
@@ -313,10 +313,10 @@ def _update_password(rollno):
 
     #Confirms student's identity
     pwd = pwinput.pwinput("Please enter current password: ")
-    config.cur.execute("select pwd from students where rollno = {}".format(rollno))
+    cfg.cur.execute("select pwd from students where rollno = {}".format(rollno))
 
-    if pwd != config.cur.fetchall()[0][0]: # type: ignore
-        print("[red]Incorrect password")
+    if pwd != cfg.cur.fetchall()[0][0]: # type: ignore
+        cfg.failure("Incorrect password")
         return
     
     #Inputs new password
@@ -324,15 +324,15 @@ def _update_password(rollno):
     re_new_pwd = pwinput.pwinput("Confirm new password: ")
 
     if new_pwd != re_new_pwd:
-        print("[red]Did not update passsword")
-        print("[red]Password and confirmed password do not match")
+        cfg.failure("Did not update passsword")
+        cfg.failure("Password and confirmed password do not match")
         return
     
     #Updates the database
-    config.cur.execute("update students set pwd='{}' where rollno={}".format(new_pwd, rollno))
-    config.con.commit()
+    cfg.cur.execute("update students set pwd='{}' where rollno={}".format(new_pwd, rollno))
+    cfg.con.commit()
 
-    print("[green]Password updated successfully")
+    cfg.success("Password updated successfully")
 
 def _delete_account(rollno):
     """
@@ -345,7 +345,7 @@ def _delete_account(rollno):
 
     Raises
     ------
-    config.AccountDeleted
+    cfg.AccountDeleted
         If account is successfully deleted.
         Not an actual error, but used to exit out of the student homepage loop
     """
@@ -360,18 +360,18 @@ def _delete_account(rollno):
     
     #Confirms student's identiy
     pwd = pwinput.pwinput("Please enter password for verification: ")
-    config.cur.execute("select pwd from students where rollno = {}".format(rollno))
+    cfg.cur.execute("select pwd from students where rollno = {}".format(rollno))
 
-    if pwd != config.cur.fetchall()[0][0]: # type: ignore
-        print("[red]Incorrect password")
+    if pwd != cfg.cur.fetchall()[0][0]: # type: ignore
+        cfg.failure("Incorrect password")
         return
     
     #Deletes account
-    config.cur.execute("delete from students where rollno={}".format(rollno))
-    config.con.commit()
+    cfg.cur.execute("delete from students where rollno={}".format(rollno))
+    cfg.con.commit()
 
-    print("[green]Profile deleted successfully")
+    cfg.success("Profile deleted successfully")
 
-    config.wait_for_enter()
+    cfg.wait_for_enter()
 
-    raise config.AccountDeleted
+    raise cfg.AccountDeleted
