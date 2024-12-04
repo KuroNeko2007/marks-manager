@@ -7,6 +7,7 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 import cfg
+import graphing_utilities
 
 def student_auth():
     """
@@ -269,6 +270,10 @@ def _view_analysis(rollno):
     cfg.cur.execute(query)
     subject_list = cfg.cur.fetchall()
 
+    if len(subject_list) == 0:
+        cfg.failure("No such results in records")
+        return
+
     #Creates table to display the results
     table = Table()
 
@@ -280,24 +285,23 @@ def _view_analysis(rollno):
 
     #Adds a row for each subject
     for sub in subject_list:
-        #--Uses queries to fetch average and standard deviation of percentages for each subject and total
-        #--These are complicated by the fact that when total percentages are being calculated, it needs to be divided by the number of subjects
+
+        #Uses user defined sql functions to fetch marks percentage
         if series == "":
-            query = "select avg(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from results, exams, (select eid, count(*) as c from exam_subjects group by eid) as num where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.eid=num.eid".format(sub[1], rollno) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results".format(sub[1], rollno) # type: ignore
         else:
-            query = "select avg(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * results.marks / exams.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from results, exams, (select eid, count(*) as c from exam_subjects group by eid) as num where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.series_id='{2}'".format(sub[1], rollno, series) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and exams.series_id = '{2}'".format(sub[1], rollno, series) # type: ignore
         cfg.cur.execute(query)
         overall_data = cfg.cur.fetchall()
 
-        #--Same as above, but only for recent exams
         if series == "":
-            query = "select avg(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from (select results.marks, exams.sub_max_marks, row_number() over (order by date) row_num from results, exams where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid) as n, (select eid, count(*) as c from exam_subjects group by eid) as num where row_num <= {2};".format(sub[1], rollno, recent_count) #type: ignore
+            query = "select avg(marks_percentage(rec.eid, '{0}', {1})), stddev(marks_percentage(rec.eid, '{0}', {1})) from (select results.eid, row_number() over (order by exams.date) row_num from exams, results where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1}) as rec where rec.row_num <= {2}".format(sub[1], rollno, recent_count) #type: ignore
         else:
-            query = "select avg(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end), stddev_pop(100 * n.marks / n.sub_max_marks / case when '{0}'='000' then num.c else 1 end) from (select results.marks, exams.sub_max_marks, row_number() over (order by date) row_num from results, exams where results.rollno={1} and results.sid='{0}' and exams.eid=results.eid and exams.series_id='{3}') as n, (select eid, count(*) as c from exam_subjects group by eid) as num where row_num <= {2};".format(sub[1], rollno, recent_count, series) #type: ignore
+            query = "select avg(marks_percentage(rec.eid, '{0}', {1})), stddev(marks_percentage(rec.eid, '{0}', {1})) from (select results.eid, row_number() over (order by exams.date) row_num from exams, results where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} and exams.series_id = '{3}') as rec where rec.row_num <= {2}".format(sub[1], rollno, recent_count, series) #type: ignore
         cfg.cur.execute(query)
         recent_data = cfg.cur.fetchall()
-        
-        table.add_row(sub[0], str(int(100*overall_data[0][0]) / 100), str(int(100*overall_data[0][1]) / 100), str(int(100*recent_data[0][0]) / 100), str(int(100*recent_data[0][1]) / 100)) #type: ignore
+
+        table.add_row(sub[0], str(int(10000*overall_data[0][0]) / 100), str(int(10000*overall_data[0][1]) / 100), str(int(10000*recent_data[0][0]) / 100), str(int(10000*recent_data[0][1]) / 100)) #type: ignore
 
     #Displays the result
     print(table)
