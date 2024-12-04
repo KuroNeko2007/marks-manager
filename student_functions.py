@@ -245,6 +245,14 @@ def _view_student_results(rollno):
     ##--Display the created table
     print(table)
 
+    
+    #Prompts user for displaying graphs
+    should_display_graph = Confirm.ask("Display graphs for above data?")
+    if should_display_graph:
+        graphing_utilities.student_result(rollno, series) 
+    
+
+
 def _view_analysis(rollno):
     """
     Lets students analyse their results
