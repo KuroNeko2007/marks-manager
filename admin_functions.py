@@ -1,4 +1,4 @@
-from mysql.connector import IntegrityError, DataError
+from mysql.connector import IntegrityError, DataError, Error
 from os import system
 import pwinput
 from rich import print
@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.prompt import Confirm
 
 import cfg
+import db_utils
 from student_functions import _view_student_results
 
 
@@ -145,8 +146,7 @@ def _view_student_list():
 
     #Fetches list of students
     try:
-        cfg.cur.execute("select rollno, name from students order by rollno")
-        students = cfg.cur.fetchall()
+        students = db_utils.fetch_student_list()
 
         if len(students) == 0:
             cfg.failure("No students in records")
@@ -174,10 +174,9 @@ def _view_exams():
 
     #Fetches list of exams
     try:
-        cfg.cur.execute("select eid, series_id, date, sub_max_marks from exams order by date")
-        result = cfg.cur.fetchall()
+        exams = db_utils.fetch_exam_list()
 
-        if len(result) == 0:
+        if len(exams) == 0:
             cfg.failure("No exams in records")
             raise
     except:
@@ -195,9 +194,8 @@ def _view_exams():
 
 
     #Adds each exam to the table
-    for row in result:
-        cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid;".format(row[0])) # type: ignore
-        sub_details = cfg.cur.fetchall()
+    for exam in exams:
+        sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False) #type: ignore
 
         #--Creates sub table to handle subject details
         sub_table = Table.grid(expand=True, padding=(0, 4))
@@ -207,7 +205,7 @@ def _view_exams():
         for sub in sub_details:
             sub_table.add_row(sub[0], sub[1]) # type: ignore
 
-        table.add_row(str(row[0]), row[1], row[2].strftime("%Y-%m-%d"), str(row[3] * len(sub_details)), sub_table) # type: ignore
+        table.add_row(str(exam[0]), exam[1], exam[2].strftime("%Y-%m-%d"), str(exam[3] * len(sub_details)), sub_table) # type: ignore
 
     #Displays table
     print(table)
@@ -219,10 +217,9 @@ def _view_subjects():
 
     #Fetches list of subjects
     try:
-        cfg.cur.execute("select sid, name from subjects order by sid")
-        result = cfg.cur.fetchall()
+        subjects = db_utils.fetch_subject_list()
 
-        if len(result) == 0:
+        if len(subjects) == 0:
             cfg.failure("No subjects in records")
             raise
     except:
@@ -235,7 +232,7 @@ def _view_subjects():
     table.add_column("Subject ID", justify="right", style="cyan", no_wrap=True)
     table.add_column("Subject Name", style="spring_green3")
 
-    for row in result:
+    for row in subjects:
         table.add_row(row[0], row[1]) # type: ignore
 
     print(table)
@@ -247,10 +244,9 @@ def _view_exam_series():
 
     #Fetches list of series
     try:
-        cfg.cur.execute("select series_id from series order by series_id")
-        result = cfg.cur.fetchall()
+        series_list = db_utils.fetch_series_list()
 
-        if len(result) == 0:
+        if len(series_list) == 0:
             cfg.failure("No series in records")
             raise
     except:
@@ -261,8 +257,8 @@ def _view_exam_series():
     table = Table(title="Series List")
     table.add_column("Series ID", justify="right", style="cyan", no_wrap=True)
 
-    for row in result:
-        table.add_row(row[0]) # type: ignore
+    for series in series_list:
+        table.add_row(series[0]) # type: ignore
 
     print(table)
 
@@ -307,14 +303,10 @@ def _view_exam_results():
 
     #Fetches maximum possible marks and verifies that exam id exists
     try:
-        cfg.cur.execute("select sub_max_marks from exams where eid='{}'".format(eid))
-
-        records = cfg.cur.fetchall()
-        if len(records) == 0:
+        sub_max_marks = db_utils.fetch_sub_max_marks(eid)
+        if sub_max_marks is None:
             cfg.failure("No such exam in records")
             raise
-        
-        sub_max_marks = records[0][0] # type: ignore
     except:
         cfg.failure("Could not fetch exam details")
         return
@@ -322,8 +314,7 @@ def _view_exam_results():
 
     #Fetches subject details of exam
     try:
-        cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid;".format(eid))
-        sub_details = cfg.cur.fetchall()
+        subjects = db_utils.fetch_subject_list_by_exam(eid, include_total=False)
     except:
         cfg.failure("Could not fetch subject details")
         return
@@ -354,33 +345,34 @@ def _view_exam_results():
             #Fetches specific student details
             cfg.cur.execute("select name from students where rollno={}".format(roll[0])) #type: ignore
             name = cfg.cur.fetchall()[0][0] #type: ignore
-            
+
             sub_table = Table(expand=True, padding=(0, 4), box=None)
             sub_table.add_column("Subject", style="green4")
             sub_table.add_column("Marks", style="turquoise2", justify="right")
             sub_table.add_column("Percentage", style="blue_violet", justify="right")
             sub_table.add_column("Rank", style="chartreuse3", justify="right")
 
-            for sub in sub_details:
+            for sub in subjects:
                 #Fetches specific subject details
-                cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}' order by sid".format(roll[0], eid, sub[0])) #type: ignore
+                cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}' order by sid".format(roll[0], eid, sub[1])) #type: ignore                
                 sub_results = cfg.cur.fetchall()[0]
+
                 sub_table.add_row(
-                    sub[1],                                                         # type: ignore
+                    sub[0],                                                         # type: ignore
                     str(sub_results[0]),                                            # type: ignore
                     str(int(10000 * sub_results[0] / sub_max_marks) / 100),         # type: ignore
                     str(sub_results[1] if not sub_results[1] is None else "-")      # type: ignore
-                ) 
+                )
 
             table.add_row(
                 str(roll[0]),                                                               # type: ignore
                 name,                                                                       # type: ignore
                 str(roll[1]),                                                               # type: ignore
-                str(int(10000 * roll[1] / (len(sub_details) * sub_max_marks)) / 100),       # type: ignore
+                str(int(10000 * roll[1] / (len(subjects) * sub_max_marks)) / 100),       # type: ignore
                 str(roll[2] if not roll[2] is None else "-"),                               # type: ignore
                 sub_table
             )
-    except:
+    except Exception as e:
         cfg.failure("Could not fetch results")
         return
     
@@ -397,9 +389,8 @@ def _view_student_results_roll():
 
     #Verifies that entered data is valid
     try:
-        cfg.cur.execute("select count(*) from students where rollno = {}".format(rollno))
-        if cfg.cur.fetchall()[0][0] == 0: #type: ignore
-            cfg.failure("No such students in records")
+        if not db_utils.check_student_exists(rollno):
+            print("No such student in records")
             raise
     except:
         cfg.failure("Could not display results")
@@ -419,13 +410,10 @@ def _view_specific_result():
 
     #Fetches results
     try:
-        cfg.cur.execute("select sub_max_marks from exams where eid='{}'".format(eid))
-        exam_details = cfg.cur.fetchall()
-        if len(exam_details) == 0:
+        sub_max_marks = db_utils.fetch_sub_max_marks(eid)
+        if sub_max_marks is None:
             cfg.failure("No such exam in records")
             raise
-
-        sub_max_marks = exam_details[0][0] #type: ignore
 
         cfg.cur.execute("select subjects.name, results.marks, results.ranking from subjects, results where rollno={} and eid='{}' and subjects.sid = results.sid order by results.sid".format(rollno, eid))
         sub_details = cfg.cur.fetchall()
@@ -463,7 +451,7 @@ def _add_exam():
     """
 
     #Inputs exams data
-    eid = input("Exam ID: ")
+    exam_id = input("Exam ID: ")
     series_id = input("Series ID: ")
     date = input("Enter Date (YYYY-MM-DD): ")
     sub_max_marks = int(input("Maximum marks per subject: "))
@@ -485,10 +473,14 @@ def _add_exam():
 
     #Add data into the exams table
     try:
-        cfg.cur.execute("insert into exams values('{}', '{}', '{}', {})".format(eid, series_id, date, sub_max_marks))
+        if db_utils.check_exam_exists(exam_id):
+            cfg.failure("Exam ID taken")
+            raise
+
+        cfg.cur.execute("insert into exams values('{}', '{}', '{}', {})".format(exam_id, series_id, date, sub_max_marks))
         cfg.con.commit()
     except IntegrityError:
-        cfg.failure("Exam ID taken or Series ID does not exist")
+        cfg.failure("Series ID does not exist")
         cfg.failure("Could not add exam")
         return
     except DataError:
@@ -503,7 +495,7 @@ def _add_exam():
     success = True
     for sub_code in sub_codes:
         try:
-            cfg.cur.execute("insert into exam_subjects values('{}', '{}')".format(eid, sub_code))
+            cfg.cur.execute("insert into exam_subjects values('{}', '{}')".format(exam_id, sub_code))
             cfg.con.commit()
         except IntegrityError:
             cfg.failure("Subject with code [blue]" + sub_code + "[/blue] does not exist")
@@ -521,8 +513,8 @@ def _add_exam():
         return
     
     #Handle failure: remove exam data since addition into exam_subjects was unsucessful
-    cfg.cur.execute("delete from exams where eid='{}'".format(eid))
-    cfg.cur.execute("delete from exam_subjects where eid='{}'".format(eid))
+    cfg.cur.execute("delete from exams where eid='{}'".format(exam_id))
+    cfg.cur.execute("delete from exam_subjects where eid='{}'".format(exam_id))
     cfg.con.commit()
 
 def _add_subject():
@@ -568,23 +560,23 @@ def _add_series():
 
 
 #Stores state for following function to ease bulk entry of results
-__add_result_previous_eid = None
+__add_result_previous_exam_id = None
 __add_result_previous_rollno = None
 def _add_result():
     """
     Adds result to database
     """
 
-    global __add_result_previous_eid, __add_result_previous_rollno
+    global __add_result_previous_exam_id, __add_result_previous_rollno
 
     #Inputs Exam ID and Roll Number from user
-    if __add_result_previous_eid == None or __add_result_previous_rollno == None:
-        eid = input("Exam ID: ")
+    if __add_result_previous_exam_id == None or __add_result_previous_rollno == None:
+        exam_id = input("Exam ID: ")
         rollno = int(input("Roll Number: "))
     else:
-        eid = input("Exam ID (leave blank to use previously entered): ")
-        if eid == "":
-            eid = __add_result_previous_eid
+        exam_id = input("Exam ID (leave blank to use previously entered): ")
+        if exam_id == "":
+            exam_id = __add_result_previous_exam_id
 
         rollno = input("Roll Number (leave blank to use previously entered): ")
         if rollno == "":
@@ -593,55 +585,34 @@ def _add_result():
             rollno = int(rollno)    
     
 
-    #Verifies that result does not already exist
+    #Verifies that everything is valid
     try:
-        cfg.cur.execute("select count(*) from results where eid='{}' and rollno={}".format(eid, rollno))
-        if cfg.cur.fetchall()[0][0] != 0: #type: ignore
+        if db_utils.check_result_exists(rollno, exam_id):
             cfg.failure("Result already exists")
             raise
-    except:
-        cfg.failure("Could not add result")
-        return
 
-
-    #Gets maximum marks per subject and verifies that exam id exists
-    try:
-        cfg.cur.execute("select sub_max_marks from exams where eid='{}'".format(eid))
-
-        records = cfg.cur.fetchall()
-        if len(records) == 0:
+        sub_max_marks = db_utils.fetch_sub_max_marks(exam_id)
+        if sub_max_marks is None:
             cfg.failure("No such exam in records")
             raise
-        
-        sub_max_marks = records[0][0] # type: ignore
-    except:
-        cfg.failure("Could not add result")
-        return
-    
 
-    #Verifies that student with specified roll number exists
-    try:
-        cfg.cur.execute("select count(*) from students where rollno={}".format(rollno))
-        if cfg.cur.fetchall()[0][0] == 0: #type: ignore
+        if not db_utils.check_student_exists(rollno):
             cfg.failure("No such student in records")
             raise
+
+        subjects = db_utils.fetch_subject_list_by_exam(exam_id, include_total=False)
     except:
         cfg.failure("Could not add result")
         return
-
-    #Fetches subject details so user can be queried for information
-    cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid;".format(eid))
-
-    sub_details = cfg.cur.fetchall()
 
     #Inputs result
     ranking_applicable = Confirm.ask("Are rankings applicable to this result?")
 
     marks = []
     ranking = []
-    for sub in sub_details:
+    for sub in subjects:
         while True:
-            print("Enter marks for [green4]" + sub[0] + "[/green4][turquoise2]" + sub[1] + "[/turquoise2]: ", end="") #type: ignore
+            print("Enter marks for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="") #type: ignore
             mark = int(input())
             if mark > sub_max_marks: #type: ignore
                 cfg.failure("Entered marks exceed maximum marks")
@@ -650,7 +621,7 @@ def _add_result():
             break
 
         if ranking_applicable:
-                print("Enter rank for [green4]" + sub[0] + "[/green4][turquoise2]" + sub[1] + "[/turquoise2]: ", end="") #type: ignore
+                print("Enter rank for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="") #type: ignore
                 rank = int(input())
                 ranking.append(rank)
         marks.append(mark)
@@ -663,22 +634,22 @@ def _add_result():
     try:
         if ranking_applicable:
             for i in range(len(marks)):
-                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(eid, sub_details[i][0], rollno, marks[i], ranking[i])) #type: ignore
-            cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(eid, '000', rollno, sum(marks), ranking[len(marks)]))
+                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(exam_id, subjects[i][1], rollno, marks[i], ranking[i])) #type: ignore
+            cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(exam_id, '000', rollno, sum(marks), ranking[len(marks)]))
         else:
             for i in range(len(marks)):
-                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(eid, sub_details[i][0], rollno, marks[i])) #type: ignore
-            cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(eid, '000', rollno, sum(marks)))
+                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(exam_id, subjects[i][1], rollno, marks[i])) #type: ignore
+            cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(exam_id, '000', rollno, sum(marks)))
         
         cfg.con.commit()
     except:
-        cfg.failure("Error: Could not add result")
+        cfg.failure("Could not add result")
         return
 
     cfg.success("Result added successfully")
 
     #Updates state variables for easy entry
-    __add_result_previous_eid = eid
+    __add_result_previous_exam_id = exam_id
     __add_result_previous_rollno = rollno
 
 def _reset_student_password():
@@ -691,12 +662,11 @@ def _reset_student_password():
 
     #Verifies that student with specifed roll number exist
     try:
-        cfg.cur.execute("select count(*) from students where rollno={}".format(rollno))
-        if cfg.cur.fetchall()[0][0] == 0:  #type: ignore
-            cfg.failure("Entered roll number does not exist")
+        if not db_utils.check_student_exists(rollno):
+            print("No such students in records")
             raise
     except:
-        cfg.failure("Error: Could not update password")
+        cfg.failure("Could not update password")
         return
 
     #Inputs password

@@ -47,3 +47,7 @@ def failure(message):
 
 def success(message):
     print("[green]" + message + "[/green]")
+
+
+def debug(message):
+    print("[yellow]" + message + "[/yellow]")

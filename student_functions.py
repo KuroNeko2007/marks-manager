@@ -1,5 +1,5 @@
 from datetime import datetime
-from mysql.connector import IntegrityError
+from mysql.connector import Error, IntegrityError
 from os import system
 from rich import print
 import pwinput
@@ -7,7 +7,9 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 import cfg
-import graphing_utilities
+import db_utils
+import graphing_utils
+
 
 def student_auth():
     """
@@ -98,15 +100,17 @@ def _signup():
 
     #Attempts to create profile
     try:
+        if db_utils.check_student_exists(rollno):
+            cfg.failure("Roll number taken")
+            raise
+
         cfg.cur.execute("insert into students values({}, '{}', '{}')".format(rollno, name, pwd))
         cfg.con.commit()
-    except IntegrityError:
-        cfg.failure("Roll number taken")
-        cfg.failure("Could not create profile")
     except:
         cfg.failure("Could not create profile")
-    else:
-        cfg.success("Profile created successfully!")
+        return
+    
+    cfg.success("Profile created successfully!")
 
 def _student_home(rollno, name):
     """
@@ -174,7 +178,7 @@ def _view_student_results(rollno):
     #Asks user for additional details
     series = input("Series (leave blank to display all): ")
 
-    #Fetches the list of exams given by student
+    #Fetches the results of exams given by student
     if series == "":
         query = "select results.eid, exams.date, exams.series_id, results.marks, results.ranking, exams.sub_max_marks from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid order by exams.date desc".format(rollno)
     else:
@@ -207,8 +211,7 @@ def _view_student_results(rollno):
     for exam in exam_list:
         #-- --Fetches subject list of specific exam
         try:
-            cfg.cur.execute("select exam_subjects.sid, subjects.name from exam_subjects, subjects where eid='{}' and exam_subjects.sid = subjects.sid order by exam_subjects.sid;".format(exam[0])) #type: ignore
-            sub_details = cfg.cur.fetchall()
+            sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False) #type: ignore
         except:
             cfg.failure("Could not display result")
             return
@@ -222,10 +225,10 @@ def _view_student_results(rollno):
 
         #-- -- --Fetches subject-wise details and adds it to the sub-table
         for sub in sub_details:
-            cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[0])) #type: ignore
+            cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[1])) #type: ignore
             sub_results = cfg.cur.fetchall()[0]
             sub_table.add_row(
-                sub[1],                                                         # type: ignore
+                sub[0],                                                         # type: ignore
                 str(sub_results[0]),                                            # type: ignore
                 str(int(10000 * sub_results[0] / exam[5]) / 100),         # type: ignore
                 str(sub_results[1] if not sub_results[1] is None else "-")      # type: ignore
@@ -270,17 +273,15 @@ def _view_analysis(rollno):
     recent_count = int(input("Number of exams to be considered in recent: "))
     
     #Fetches subject list of student
-    if series == "":
-        query = "select distinct subjects.name, subjects.sid from subjects, results where results.rollno={} and results.sid=subjects.sid order by sid".format(rollno)
-    else:
-        query = "select distinct subjects.name, subjects.sid from subjects, results, exams where results.rollno={} and results.sid=subjects.sid and results.eid = exams.eid and exams.series_id='{}' order by sid".format(rollno, series)
+    try:
+        subject_list = db_utils.fetch_subject_list_by_student_series(rollno, series)
+        if len(subject_list) == 0:
+            cfg.failure("No such results in records")
+            raise
+    except:
+        cfg.failure("Could not fetch subject details")
 
-    cfg.cur.execute(query)
-    subject_list = cfg.cur.fetchall()
-
-    if len(subject_list) == 0:
-        cfg.failure("No such results in records")
-        return
+    
 
     #Creates table to display the results
     table = Table()
@@ -303,9 +304,9 @@ def _view_analysis(rollno):
         overall_data = cfg.cur.fetchall()
 
         if series == "":
-            query = "select avg(marks_percentage(rec.eid, '{0}', {1})), stddev(marks_percentage(rec.eid, '{0}', {1})) from (select results.eid, row_number() over (order by exams.date) row_num from exams, results where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1}) as rec where rec.row_num <= {2}".format(sub[1], rollno, recent_count) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} order by exams.date limit {2}".format(sub[1], rollno, recent_count) #type: ignore
         else:
-            query = "select avg(marks_percentage(rec.eid, '{0}', {1})), stddev(marks_percentage(rec.eid, '{0}', {1})) from (select results.eid, row_number() over (order by exams.date) row_num from exams, results where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} and exams.series_id = '{3}') as rec where rec.row_num <= {2}".format(sub[1], rollno, recent_count, series) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} and exams.series_id = '{3}' order by exams.date limit {2}".format(sub[1], rollno, recent_count, series) #type: ignore
         cfg.cur.execute(query)
         recent_data = cfg.cur.fetchall()
 
