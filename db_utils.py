@@ -1,6 +1,7 @@
+from datetime import date
 import cfg
 
-def check_student_exists(rollno):
+def check_student_exists(rollno: int) -> bool:
     """
     Checks if particular student is in database
 
@@ -25,7 +26,7 @@ def check_student_exists(rollno):
     return len(cfg.cur.fetchall()) != 0
 
 
-def check_exam_exists(exam_id):
+def check_exam_exists(exam_id: str) -> bool:
     """
     Checks if particular exam is in database
 
@@ -50,7 +51,7 @@ def check_exam_exists(exam_id):
     return len(cfg.cur.fetchall()) != 0
 
 
-def check_result_exists(rollno, exam_id):
+def check_result_exists(rollno: int, exam_id: str) -> bool:
     """
     Checks if particular result is in database
 
@@ -78,7 +79,7 @@ def check_result_exists(rollno, exam_id):
 
 
 
-def fetch_sub_max_marks(exam_id):
+def fetch_sub_max_marks(exam_id: str) -> int|None:
     """
     Fetches maximum marks per subject for a particular exam
 
@@ -102,21 +103,21 @@ def fetch_sub_max_marks(exam_id):
 
     cfg.cur.execute("select sub_max_marks from exams where eid='{}'".format(exam_id))
 
-    records = cfg.cur.fetchall()
+    records:list[tuple[int]] = cfg.cur.fetchall() #type: ignore
 
     if len(records) == 0:
         return None
     else:
-        return records[0][0] #type: ignore
+        return records[0][0]
 
 
-def fetch_exam_list():
+def fetch_exam_list() -> list[tuple[str, str, date, int]]:
     """
     Fetches list of all exams in records, orders by date desc
 
     Returns
     -------
-    List[Tuple[str, str, Date, int]]
+    list[tuple[str, str, Date, int]]
         List of tuples of exams
         Tuple elements are exam id, series id, date and maximum marks per subject respectively
 
@@ -128,17 +129,17 @@ def fetch_exam_list():
 
     cfg.cur.execute("select eid, series_id, date, sub_max_marks from exams order by date desc")
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
 
 
-def fetch_series_list():
+def fetch_series_list() -> list[tuple[str]]:
     """
     Fetches list of all series in records, orders by series id
 
     Returns
     -------
-    List[Tuple[str]]
+    list[tuple[str]]
         List of tuples of series
 
     Raises
@@ -149,16 +150,16 @@ def fetch_series_list():
 
     cfg.cur.execute("select series_id from series order by series_id")
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
 
-def fetch_student_list():
+def fetch_student_list() -> list[tuple[int, str]]:
     """
     Fetches list of all students in records, orders by roll number
 
     Returns
     -------
-    List[Tuple[int, str]]
+    list[tuple[int, str]]
         List of tuples of students
         First element of tuple is roll number while second is name
 
@@ -170,16 +171,16 @@ def fetch_student_list():
 
     cfg.cur.execute("select rollno, name from students order by rollno")
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
 
-def fetch_subject_list():
+def fetch_subject_list() -> list[tuple[str, str]]:
     """
     Fetches list of all subjects, orders by subject id
 
     Returns
     -------
-    List[Tuple[str, str]]
+    list[tuple[str, str]]
         List of tuples of subjects.
         First element of tuple is subject name while second is subject id
 
@@ -192,9 +193,9 @@ def fetch_subject_list():
     
     cfg.cur.execute("select name, sid from subjects order by sid")
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
-def fetch_subject_list_by_student(rollno):
+def fetch_subject_list_by_student(rollno:int) -> list[tuple[str, str]]:
     """
     Fetches list of subjects for a particular student, orders by subject id
 
@@ -205,7 +206,7 @@ def fetch_subject_list_by_student(rollno):
 
     Returns
     -------
-    List[Tuple[str, str]]
+    list[tuple[str, str]]
         List of tuples of subjects.
         First element of tuple is subject name while second is subject id
 
@@ -220,9 +221,9 @@ def fetch_subject_list_by_student(rollno):
     
     cfg.cur.execute(query)
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
-def fetch_subject_list_by_student_series(rollno, series):
+def fetch_subject_list_by_student_series(rollno: int, series: str) -> list[tuple[str, str]]:
     """
     Fetches list of subjects for a particular student and series, orders by subject id
 
@@ -235,7 +236,7 @@ def fetch_subject_list_by_student_series(rollno, series):
 
     Returns
     -------
-    List[Tuple[str, str]]
+    list[tuple[str, str]]
         List of tuples of subjects.
         First element of tuple is subject name while second is subject id
 
@@ -252,9 +253,9 @@ def fetch_subject_list_by_student_series(rollno, series):
     query = "select distinct subjects.name, subjects.sid from subjects, results, exams where results.rollno={} and results.sid=subjects.sid and results.eid = exams.eid and exams.series_id='{}' order by sid".format(rollno, series)
     cfg.cur.execute(query)
 
-    return cfg.cur.fetchall()
+    return cfg.cur.fetchall() #type: ignore
 
-def fetch_subject_list_by_exam(exam_id, include_total=True):
+def fetch_subject_list_by_exam(exam_id:str, include_total:bool=True) -> list[tuple[str, str]]:
     """
     Fetches list of subjects for a particular exam, orders by subject id
 
@@ -287,4 +288,4 @@ def fetch_subject_list_by_exam(exam_id, include_total=True):
     if include_total and len(records) > 0:
         records.insert(0, ("Total", "000"))
     
-    return records
+    return records #type: ignore

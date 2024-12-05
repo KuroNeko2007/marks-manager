@@ -38,16 +38,16 @@ def connect():
     global cur
     cur = con.cursor()
 
-def wait_for_enter(message="Press enter to continue..."):
+def wait_for_enter(message: str="Press enter to continue..."):
     print()
     input(message)
 
-def failure(message):
+def failure(message: str):
     print("[red]" + message + "[/red]")
 
-def success(message):
+def success(message: str):
     print("[green]" + message + "[/green]")
 
 
-def debug(message):
+def debug(message: str):
     print("[yellow]" + message + "[/yellow]")
