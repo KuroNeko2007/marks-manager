@@ -349,7 +349,7 @@ def _view_exam_results():
                 sub_table.add_row(
                     sub[0],
                     str(sub_results[0]),
-                    "{:.2f}".format(sub_results[2]),
+                    "{:.2f}".format(sub_results[2] * 100),
                     str(sub_results[1] if not sub_results[1] is None else "-")
                 )
 
@@ -357,7 +357,7 @@ def _view_exam_results():
                 str(roll[0]),
                 name,
                 str(roll[1]),
-                "{:.2f}".format(roll[3]),
+                "{:.2f}".format(roll[3] * 100),
                 str(roll[2] if not roll[2] is None else "-"),
                 sub_table
             )
@@ -419,7 +419,7 @@ def _view_specific_result():
 
     #Adds information to table
     for sub in sub_details:
-        table.add_row(sub[0], str(sub[1]), "{:.2f}".format(sub[2]), str(sub[3] if not sub[3] is None else "-"))
+        table.add_row(sub[0], str(sub[1]), "{:.2f}".format(sub[2] * 100), str(sub[3] if not sub[3] is None else "-"))
 
     #Displays table
     print(table)
