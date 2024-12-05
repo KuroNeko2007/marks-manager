@@ -235,7 +235,7 @@ def _view_student_results(rollno: int):
                 sub[1],
                 sub[0],
                 str(sub_results[0]),
-                "{:.2f}".format(sub_results[2]),
+                "{:.2f}".format(sub_results[2] * 100),
                 str(sub_results[1] if not sub_results[1] is None else "-")
             ) 
 
@@ -245,7 +245,7 @@ def _view_student_results(rollno: int):
             exam[1].strftime('%Y-%m-%d'),
             exam[2],
             str(exam[3]),
-            "{:.2f}".format(exam[4]),
+            "{:.2f}".format(exam[4] * 100),
             str(exam[5] if not exam[5] is None else "-"),
             sub_table
         )
@@ -352,7 +352,7 @@ def _view_analysis(rollno: int):
         cfg.cur.execute(query)
         recent_data: tuple[float, float] = cfg.cur.fetchall()[0] #type: ignore
 
-        table.add_row(sub[0], "{:.2f}".format(overall_data[0]), "{:.2f}".format(overall_data[1]), "{:.2f}".format(recent_data[0]), "{:.2f}".format(recent_data[1]))
+        table.add_row(sub[0], "{:.2f}".format(overall_data[0] * 100), "{:.2f}".format(overall_data[1] * 100), "{:.2f}".format(recent_data[0] * 100), "{:.2f}".format(recent_data[1] * 100))
 
     #Displays the result
     print(table)
