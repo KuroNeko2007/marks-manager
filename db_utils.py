@@ -110,6 +110,39 @@ def fetch_sub_max_marks(exam_id: str) -> int|None:
     else:
         return records[0][0]
 
+def fetch_subject_name(subject_id: str) -> str|None:
+    """
+    Fetches name of subject given the subject id
+
+    Parameter
+    ---------
+    subject_id : str
+        Subject ID of subject to fetch for
+
+    Returns
+    -------
+    str
+        Name of subject for specified id
+    None
+        If no such subjects found in records
+
+    Raises
+    ------
+    mysql.connector.Error
+        If query fails due to any reason
+    """
+
+    cfg.cur.execute("select name from subjects where sid='{}'".format(subject_id))
+
+    records: list[tuple[str]] = cfg.cur.fetchall() #type: ignore
+
+    if len(records) == 0:
+        return None
+    else:
+        return records[0][0]
+
+
+
 
 def fetch_exam_list() -> list[tuple[str, str, date, int]]:
     """

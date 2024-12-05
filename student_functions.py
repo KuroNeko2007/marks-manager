@@ -132,9 +132,10 @@ def _student_home(rollno: int, name: str):
         print("\n")
         print("1. Logout")
         print("2. View results")
-        print("3. Analyse results")
-        print("4. Update password")
-        print("5. Delete profile")
+        print("3. Display graphs")
+        print("4. Analyse results")
+        print("5. Update password")
+        print("6. Delete profile")
         print()
 
 
@@ -145,10 +146,12 @@ def _student_home(rollno: int, name: str):
             elif choice == 2:
                 _view_student_results(rollno)
             elif choice == 3:
-                _view_analysis(rollno)
+                _view_student_graphs(rollno)
             elif choice == 4:
-                _update_password(rollno)
+                _view_analysis(rollno)
             elif choice == 5:
+                _update_password(rollno)
+            elif choice == 6:
                 _delete_account(rollno)
             else:
                 raise ValueError
@@ -170,7 +173,7 @@ def _view_student_results(rollno: int):
     Parameters
     ----------
     rollno : int
-        Roll number of students, used to fetch the results
+        Roll number of student, used to fetch the results
     """
 
     print("\n")
@@ -218,8 +221,9 @@ def _view_student_results(rollno: int):
 
         #-- --Creates sub-table for subject-wise results
         sub_table = Table(expand=True, padding=(0, 4), box=None)
-        sub_table.add_column("Subject", style="green4")
-        sub_table.add_column("Marks", style="turquoise2", justify="right")
+        sub_table.add_column("Subject ID", style="green4")
+        sub_table.add_column("Subject", style="turquoise2")
+        sub_table.add_column("Marks", style="red3", justify="right")
         sub_table.add_column("Percentage", style="blue_violet", justify="right")
         sub_table.add_column("Rank", style="chartreuse3", justify="right")
 
@@ -228,6 +232,7 @@ def _view_student_results(rollno: int):
             cfg.cur.execute("select marks, ranking, marks_percentage(eid, sid, rollno) from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[1]))
             sub_results: list[tuple[int, int, float]] = cfg.cur.fetchall()[0] #type: ignore
             sub_table.add_row(
+                sub[1],
                 sub[0],
                 str(sub_results[0]),
                 "{:.2f}".format(sub_results[2]),
@@ -246,14 +251,51 @@ def _view_student_results(rollno: int):
         )
 
     ##--Display the created table
-    print(table)
+    print(table)    
 
-    
-    #Prompts user for displaying graphs
-    should_display_graph = Confirm.ask("Display graphs for above data?")
-    if should_display_graph:
-        graphing_utilities.student_result(rollno, series) 
-    
+
+def _view_student_graphs(rollno: int):
+    """
+    Lets students view various graphs of their results
+
+    Parameters
+    ----------
+    rollno : int
+        Roll number of student, used to fetch the results
+    """
+
+    series = input("Series (leave blank to use all): ")
+    subject_id = input("Subject ID (leave blank to use overall): ")
+
+    if subject_id == "":
+        subject = ("000", "Overall")
+    else:
+        sub_name = db_utils.fetch_subject_name(subject_id)
+        if sub_name is None:
+            cfg.failure("No such subjects")
+            return
+        subject = (subject_id, sub_name)
+
+    print("1. Percentage-Exam Line Graph")
+    print("2. Frequency-Percentage Bar Graph")
+    print("3. Percentage Probability Distribution")
+    print()
+
+    try:
+        choice = int(input("Enter your choice: "))
+        if choice == 1:
+            graphing_utils.student_result_line_graph(rollno, series, subject)
+        elif choice == 2:
+            graphing_utils.student_result_frequency_plot(rollno, series, subject)
+        elif choice == 3:
+            graphing_utils.student_result_distribution(rollno, series, subject)
+        else:
+            raise ValueError
+    except ValueError:
+        cfg.failure("Invalid Input")
+    except KeyboardInterrupt:
+        cfg.failure("\nCancelled Operation")
+
 
 
 def _view_analysis(rollno: int):
@@ -263,7 +305,7 @@ def _view_analysis(rollno: int):
     Parameters
     ----------
     rollno : int
-        Roll number of students, used to fetch the results
+        Roll number of student, used to fetch the results
     """
 
     print("\n")
