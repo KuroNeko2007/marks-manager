@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from mysql.connector import Error, IntegrityError
 from os import system
 from rich import print
@@ -63,21 +63,21 @@ def _login():
     print("\n")
 
     #Inputs student details
-    rollno = input("Enter your roll number: ")
+    rollno = int(input("Enter your roll number: "))
     pwd = pwinput.pwinput("Enter your password (contact admin if you forgot): ")
 
     #Fetches data from database
-    cfg.cur.execute("select pwd, name from students where rollno = '{}';".format(rollno))
-    users = cfg.cur.fetchall()
+    cfg.cur.execute("select pwd, name from students where rollno = {};".format(rollno))
+    users: list[tuple[str, str]] = cfg.cur.fetchall() #type: ignore
 
     #Checks if credentials are valid
-    if len(users) == 0 or users[0][0] != pwd: # type: ignore
+    if len(users) == 0 or users[0][0] != pwd:
         cfg.failure("Incorrect roll number or password")
         raise cfg.LoginError
 
     #Redirects to student homepage
     cfg.success("Logged in successfully!")
-    _student_home(rollno, users[0][1]) # type: ignore
+    _student_home(rollno, users[0][1])
 
 def _signup():
     """
@@ -112,7 +112,7 @@ def _signup():
     
     cfg.success("Profile created successfully!")
 
-def _student_home(rollno, name):
+def _student_home(rollno: int, name: str):
     """
     Homepage for students
 
@@ -163,7 +163,7 @@ def _student_home(rollno, name):
         cfg.wait_for_enter()    
 
 
-def _view_student_results(rollno):
+def _view_student_results(rollno: int):
     """
     Lets students access their results
 
@@ -180,13 +180,13 @@ def _view_student_results(rollno):
 
     #Fetches the results of exams given by student
     if series == "":
-        query = "select results.eid, exams.date, exams.series_id, results.marks, results.ranking, exams.sub_max_marks from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid order by exams.date desc".format(rollno)
+        query = "select results.eid, exams.date, exams.series_id, results.marks, marks_percentage(results.eid, results.sid, results.rollno), results.ranking from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid order by exams.date desc".format(rollno)
     else:
-        query = "select results.eid, exams.date, exams.series_id, results.marks, results.ranking, exams.sub_max_marks from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid and exams.series_id = '{}' order by exams.date desc".format(rollno, series)
+        query = "select results.eid, exams.date, exams.series_id, results.marks, marks_percentage(results.eid, results.sid, results.rollno), results.ranking from results, exams where results.sid = '000' and results.rollno = {} and results.eid = exams.eid and exams.series_id = '{}' order by exams.date desc".format(rollno, series)
 
     try:
         cfg.cur.execute(query)
-        exam_list = cfg.cur.fetchall()
+        exam_list: list[tuple[str, date, str, int, float, int]] = cfg.cur.fetchall() #type: ignore
         if len(exam_list) == 0:
             cfg.failure("No results found")
             raise
@@ -211,7 +211,7 @@ def _view_student_results(rollno):
     for exam in exam_list:
         #-- --Fetches subject list of specific exam
         try:
-            sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False) #type: ignore
+            sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False)
         except:
             cfg.failure("Could not display result")
             return
@@ -225,30 +225,30 @@ def _view_student_results(rollno):
 
         #-- -- --Fetches subject-wise details and adds it to the sub-table
         for sub in sub_details:
-            cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[1])) #type: ignore
-            sub_results = cfg.cur.fetchall()[0]
+            cfg.cur.execute("select marks, ranking, marks_percentage(eid, sid, rollno) from results where rollno={} and eid ='{}' and sid='{}'".format(rollno, exam[0], sub[1]))
+            sub_results: list[tuple[int, int, float]] = cfg.cur.fetchall()[0] #type: ignore
             sub_table.add_row(
-                sub[0],                                                         # type: ignore
-                str(sub_results[0]),                                            # type: ignore
-                str(int(10000 * sub_results[0] / exam[5]) / 100),         # type: ignore
-                str(sub_results[1] if not sub_results[1] is None else "-")      # type: ignore
+                sub[0],
+                str(sub_results[0]),
+                "{:.2f}".format(sub_results[2]),
+                str(sub_results[1] if not sub_results[1] is None else "-")
             ) 
 
         ##-- --Adds exams to the table
         table.add_row(
-            exam[0],                                                            # type: ignore
-            datetime.strftime(exam[1], '%Y-%m-%d'),                             # type: ignore
-            exam[2],                                                            # type: ignore
-            str(exam[3]),                                                       # type: ignore
-            str(int(10000 * exam[3] / (len(sub_details) * exam[5])) / 100),     # type: ignore
-            str(exam[4] if not exam[4] is None else "-"),                       # type: ignore
+            exam[0],
+            exam[1].strftime('%Y-%m-%d'),
+            exam[2],
+            str(exam[3]),
+            "{:.2f}".format(exam[4]),
+            str(exam[5] if not exam[5] is None else "-"),
             sub_table
         )
 
     ##--Display the created table
     print(table)
 
-def _view_analysis(rollno):
+def _view_analysis(rollno: int):
     """
     Lets students analyse their results
 
@@ -289,26 +289,26 @@ def _view_analysis(rollno):
 
         #Uses user defined sql functions to fetch marks percentage
         if series == "":
-            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results".format(sub[1], rollno) # type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results".format(sub[1], rollno)
         else:
-            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and exams.series_id = '{2}'".format(sub[1], rollno, series) # type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and exams.series_id = '{2}'".format(sub[1], rollno, series)
         cfg.cur.execute(query)
-        overall_data = cfg.cur.fetchall()
+        overall_data: tuple[float, float] = cfg.cur.fetchall()[0] #type: ignore
 
         if series == "":
-            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} order by exams.date limit {2}".format(sub[1], rollno, recent_count) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} order by exams.date limit {2}".format(sub[1], rollno, recent_count)
         else:
-            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} and exams.series_id = '{3}' order by exams.date limit {2}".format(sub[1], rollno, recent_count, series) #type: ignore
+            query = "select avg(marks_percentage(results.eid, '{0}', {1})), stddev(marks_percentage(results.eid, '{0}', {1})) from results, exams where results.eid = exams.eid and results.sid = '{0}' and results.rollno = {1} and exams.series_id = '{3}' order by exams.date limit {2}".format(sub[1], rollno, recent_count, series)
         cfg.cur.execute(query)
-        recent_data = cfg.cur.fetchall()
+        recent_data: tuple[float, float] = cfg.cur.fetchall()[0] #type: ignore
 
-        table.add_row(sub[0], str(int(10000*overall_data[0][0]) / 100), str(int(10000*overall_data[0][1]) / 100), str(int(10000*recent_data[0][0]) / 100), str(int(10000*recent_data[0][1]) / 100)) #type: ignore
+        table.add_row(sub[0], "{:.2f}".format(overall_data[0]), "{:.2f}".format(overall_data[1]), "{:.2f}".format(recent_data[0]), "{:.2f}".format(recent_data[1]))
 
     #Displays the result
     print(table)
 
 
-def _update_password(rollno):
+def _update_password(rollno: int):
     """
     Updates student's password
 
@@ -343,7 +343,7 @@ def _update_password(rollno):
 
     cfg.success("Password updated successfully")
 
-def _delete_account(rollno):
+def _delete_account(rollno: int):
     """
     Deletes student's profile
 

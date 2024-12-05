@@ -59,9 +59,9 @@ def _login():
     pwd = pwinput.pwinput("Enter your password: ")
 
     cfg.cur.execute("select pwd from admins where uid = '{}';".format(uid))
-    users = cfg.cur.fetchall()
+    users: list[tuple[str]] = cfg.cur.fetchall() #type: ignore
 
-    if len(users) == 0 or users[0][0] != pwd: # type: ignore
+    if len(users) == 0 or users[0][0] != pwd:
         cfg.failure("Error: Incorrect user id or password")
         raise cfg.LoginError
 
@@ -69,7 +69,7 @@ def _login():
 
     _admin_home(uid)
 
-def _admin_home(uid):
+def _admin_home(uid: str):
     """
     Homepage for admins
 
@@ -163,7 +163,7 @@ def _view_student_list():
     table.add_column("Name", style="spring_green3")
 
     for student in students:
-        table.add_row(str(student[0]), student[1]) # type: ignore
+        table.add_row(str(student[0]), student[1])
 
     print(table)
 
@@ -195,7 +195,7 @@ def _view_exams():
 
     #Adds each exam to the table
     for exam in exams:
-        sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False) #type: ignore
+        sub_details = db_utils.fetch_subject_list_by_exam(exam[0], include_total=False)
 
         #--Creates sub table to handle subject details
         sub_table = Table.grid(expand=True, padding=(0, 4))
@@ -203,9 +203,9 @@ def _view_exams():
         sub_table.add_column(style="turquoise2")
 
         for sub in sub_details:
-            sub_table.add_row(sub[0], sub[1]) # type: ignore
+            sub_table.add_row(sub[0], sub[1])
 
-        table.add_row(str(exam[0]), exam[1], exam[2].strftime("%Y-%m-%d"), str(exam[3] * len(sub_details)), sub_table) # type: ignore
+        table.add_row(str(exam[0]), exam[1], exam[2].strftime("%Y-%m-%d"), str(exam[3] * len(sub_details)), sub_table)
 
     #Displays table
     print(table)
@@ -233,7 +233,7 @@ def _view_subjects():
     table.add_column("Subject Name", style="spring_green3")
 
     for row in subjects:
-        table.add_row(row[0], row[1]) # type: ignore
+        table.add_row(row[0], row[1])
 
     print(table)
 
@@ -258,7 +258,7 @@ def _view_exam_series():
     table.add_column("Series ID", justify="right", style="cyan", no_wrap=True)
 
     for series in series_list:
-        table.add_row(series[0]) # type: ignore
+        table.add_row(series[0])
 
     print(table)
 
@@ -300,18 +300,7 @@ def _view_exam_results():
     #Inputs additional information
     eid = input("Exam ID: ")
 
-
-    #Fetches maximum possible marks and verifies that exam id exists
-    try:
-        sub_max_marks = db_utils.fetch_sub_max_marks(eid)
-        if sub_max_marks is None:
-            cfg.failure("No such exam in records")
-            raise
-    except:
-        cfg.failure("Could not fetch exam details")
-        return
-    
-
+  
     #Fetches subject details of exam
     try:
         subjects = db_utils.fetch_subject_list_by_exam(eid, include_total=False)
@@ -321,8 +310,8 @@ def _view_exam_results():
     
     #Fetches sorted roll numbers of students in order of total marks
     try:
-        cfg.cur.execute("select rollno, marks, ranking from results where eid='{}' and sid='000' order by marks".format(eid))
-        roll_order = cfg.cur.fetchall()
+        cfg.cur.execute("select rollno, marks, ranking, marks_percentage(eid, sid, rollno) from results where eid='{}' and sid='000' order by marks".format(eid))
+        roll_order: list[tuple[int, int, int, float]] = cfg.cur.fetchall() #type: ignore
         if len(roll_order) == 0:
             raise
     except:
@@ -343,8 +332,8 @@ def _view_exam_results():
     try:
         for roll in roll_order:
             #Fetches specific student details
-            cfg.cur.execute("select name from students where rollno={}".format(roll[0])) #type: ignore
-            name = cfg.cur.fetchall()[0][0] #type: ignore
+            cfg.cur.execute("select name from students where rollno={}".format(roll[0]))
+            name:str = cfg.cur.fetchall()[0][0] #type: ignore
 
             sub_table = Table(expand=True, padding=(0, 4), box=None)
             sub_table.add_column("Subject", style="green4")
@@ -354,22 +343,22 @@ def _view_exam_results():
 
             for sub in subjects:
                 #Fetches specific subject details
-                cfg.cur.execute("select marks, ranking from results where rollno={} and eid ='{}' and sid='{}' order by sid".format(roll[0], eid, sub[1])) #type: ignore                
-                sub_results = cfg.cur.fetchall()[0]
+                cfg.cur.execute("select marks, ranking, marks_percentage(eid, sid, rollno) from results where rollno={} and eid ='{}' and sid='{}' order by sid".format(roll[0], eid, sub[1]))               
+                sub_results: tuple[int, int, float] = cfg.cur.fetchall()[0] #type: ignore
 
                 sub_table.add_row(
-                    sub[0],                                                         # type: ignore
-                    str(sub_results[0]),                                            # type: ignore
-                    str(int(10000 * sub_results[0] / sub_max_marks) / 100),         # type: ignore
-                    str(sub_results[1] if not sub_results[1] is None else "-")      # type: ignore
+                    sub[0],
+                    str(sub_results[0]),
+                    "{:.2f}".format(sub_results[2]),
+                    str(sub_results[1] if not sub_results[1] is None else "-")
                 )
 
             table.add_row(
-                str(roll[0]),                                                               # type: ignore
-                name,                                                                       # type: ignore
-                str(roll[1]),                                                               # type: ignore
-                str(int(10000 * roll[1] / (len(subjects) * sub_max_marks)) / 100),       # type: ignore
-                str(roll[2] if not roll[2] is None else "-"),                               # type: ignore
+                str(roll[0]),
+                name,
+                str(roll[1]),
+                "{:.2f}".format(roll[3]),
+                str(roll[2] if not roll[2] is None else "-"),
                 sub_table
             )
     except Exception as e:
@@ -410,13 +399,8 @@ def _view_specific_result():
 
     #Fetches results
     try:
-        sub_max_marks = db_utils.fetch_sub_max_marks(eid)
-        if sub_max_marks is None:
-            cfg.failure("No such exam in records")
-            raise
-
-        cfg.cur.execute("select subjects.name, results.marks, results.ranking from subjects, results where rollno={} and eid='{}' and subjects.sid = results.sid order by results.sid".format(rollno, eid))
-        sub_details = cfg.cur.fetchall()
+        cfg.cur.execute("select subjects.name, results.marks, marks_percentage(results.eid, results.sid, results.rollno), results.ranking from subjects, results where rollno={} and eid='{}' and subjects.sid = results.sid order by results.sid".format(rollno, eid))
+        sub_details:list[tuple[str, int, float, int]] = cfg.cur.fetchall() #type: ignore
 
         if len(sub_details) == 0:
             cfg.failure("No such results in records")
@@ -435,12 +419,7 @@ def _view_specific_result():
 
     #Adds information to table
     for sub in sub_details:
-        percentage = sub[1] / sub_max_marks                                     #type: ignore
-        if sub[0] == "Total":                                                   #type: ignore
-            percentage /= len(sub_details) - 1
-
-        percentage = int(percentage * 10000) / 100                              #type: ignore
-        table.add_row(sub[0], str(sub[1]), str(percentage), str(sub[2] if not sub[2] is None else "-"))    #type: ignore
+        table.add_row(sub[0], str(sub[1]), "{:.2f}".format(sub[2]), str(sub[3] if not sub[3] is None else "-"))
 
     #Displays table
     print(table)
@@ -612,16 +591,16 @@ def _add_result():
     ranking = []
     for sub in subjects:
         while True:
-            print("Enter marks for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="") #type: ignore
+            print("Enter marks for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="")
             mark = int(input())
-            if mark > sub_max_marks: #type: ignore
+            if mark > sub_max_marks:
                 cfg.failure("Entered marks exceed maximum marks")
                 cfg.failure("Please try again")
                 continue
             break
 
         if ranking_applicable:
-                print("Enter rank for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="") #type: ignore
+                print("Enter rank for [green4]" + sub[1] + "[/green4][turquoise2]" + sub[0] + "[/turquoise2]: ", end="")
                 rank = int(input())
                 ranking.append(rank)
         marks.append(mark)
@@ -634,11 +613,11 @@ def _add_result():
     try:
         if ranking_applicable:
             for i in range(len(marks)):
-                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(exam_id, subjects[i][1], rollno, marks[i], ranking[i])) #type: ignore
+                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(exam_id, subjects[i][1], rollno, marks[i], ranking[i]))
             cfg.cur.execute("insert into results values('{}', '{}', {}, {}, {})".format(exam_id, '000', rollno, sum(marks), ranking[len(marks)]))
         else:
             for i in range(len(marks)):
-                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(exam_id, subjects[i][1], rollno, marks[i])) #type: ignore
+                cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(exam_id, subjects[i][1], rollno, marks[i]))
             cfg.cur.execute("insert into results values('{}', '{}', {}, {}, null)".format(exam_id, '000', rollno, sum(marks)))
         
         cfg.con.commit()
