@@ -424,24 +424,48 @@ def _view_specific_result():
     #Displays table
     print(table)
 
+
+#Stores state for following function to ease bulk entry of exams
+__add_exam_previous_series_id = None
+__add_exam_previous_subject_set = None
 def _add_exam():
     """
     Adds exam to database
     """
 
+    global __add_exam_previous_series_id, __add_exam_previous_subject_set
+
     #Inputs exams data
     exam_id = input("Exam ID: ")
-    series_id = input("Series ID: ")
+
+    if __add_exam_previous_series_id is None:
+        series_id = input("Series ID: ")
+    else:
+        series_id = input("Series ID (leave blank to use previous): ")
+        if series_id == "":
+            series_id = __add_exam_previous_series_id
+    
     date = input("Enter Date (YYYY-MM-DD): ")
     sub_max_marks = int(input("Maximum marks per subject: "))
 
     #Inputs subjects of the exam
     sub_codes = set()
     while True:
-        sub_code = input("Add subject code (leave blank to finish): ")
+        if __add_exam_previous_subject_set is not None and len(sub_codes) == 0:
+            sub_code = input("Add subject code (leave blank to use previous list): ")
+        elif len(sub_codes) == 0:
+            sub_code = input("Add subject code: ")
+        else:
+            sub_code = input("Add subject code (leave blank to finish): ")
+        
         if sub_code == "":
             if len(sub_codes) == 0:
-                cfg.failure("Atleast one subject must be added")
+                if __add_exam_previous_subject_set is None:
+                    cfg.failure("Atleast one subject must be added")
+                    continue
+                else:
+                    sub_codes = __add_exam_previous_subject_set
+                    break
             else:
                 break
         elif sub_code == "000":
@@ -489,6 +513,10 @@ def _add_exam():
     #Report success
     if success:
         cfg.success("Exam added successfully")
+
+        __add_exam_previous_subject_set = sub_codes
+        __add_exam_previous_series_id = series_id
+
         return
     
     #Handle failure: remove exam data since addition into exam_subjects was unsucessful
